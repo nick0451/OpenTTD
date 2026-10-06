@@ -2499,6 +2499,16 @@ bool HandleViewportClicked(const Viewport &vp, int x, int y)
 {
 	const Vehicle *v = CheckClickOnVehicle(vp, x, y);
 
+	// Convert viewport coords to world coords for other subsystems (units, etc.)
+	int world_x = ScaleByZoom(x - vp.left, vp.zoom) + vp.virtual_left;
+	int world_y = ScaleByZoom(y - vp.top, vp.zoom) + vp.virtual_top;
+
+	/* Allow unit subsystem to handle clicks first (prototype hook).
+	 * The function is implemented as a stub returning false until unit
+	 * selection is implemented. */
+	extern bool HandleClickOnUnit(const Viewport &vp, int x, int y, int world_x, int world_y);
+	if (HandleClickOnUnit(vp, x, y, world_x, world_y)) return true;
+
 	if (_thd.place_mode & HT_VEHICLE) {
 		if (v != nullptr && VehicleClicked(v)) return true;
 	}

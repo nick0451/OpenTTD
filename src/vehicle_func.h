@@ -192,6 +192,9 @@ bool HasVehicleNearTileXY(int32_t x, int32_t y, uint max_dist, UnaryPred &&predi
 void VehicleServiceInDepot(Vehicle *v);
 uint CountVehiclesInChain(const Vehicle *v);
 void CallVehicleTicks();
+
+// Unit tick integration
+void CallUnitTicks();
 uint8_t CalcPercentVehicleFilled(const Vehicle *v, StringID *colour);
 
 void VehicleLengthChanged(const Vehicle *u);

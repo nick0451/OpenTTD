@@ -1227,6 +1227,9 @@ void StateGameLoop()
 		BasePersistentStorageArray::SwitchMode(PSM_ENTER_GAMELOOP);
 		RunTileLoop();
 		CallVehicleTicks();
+		// Call unit ticks after vehicles for prototype
+		extern void CallUnitTicks();
+		CallUnitTicks();
 		CallLandscapeTick();
 		BasePersistentStorageArray::SwitchMode(PSM_LEAVE_GAMELOOP);
 		UpdateLandscapingLimits();

@@ -1,0 +1,10 @@
+add_files(
+    unit.cpp
+    unit.h
+    unit_gui.cpp
+    unit_gui.h
+    unit_manager.cpp
+    unit_manager.h
+    unit_view.cpp
+    unit_view.h
+)

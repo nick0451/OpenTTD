@@ -27,9 +27,9 @@ float Unit::GetTerrainPenaltyAt(int wx, int wy) const {
     const int tile_y = wy / 32;
     const int pseudo = (tile_x * 13 + tile_y * 17) % 10;
 
-    if (pseudo >= 7) return 2.4f; // harsh terrain, rough/blocked
-    if (pseudo >= 4) return 1.6f; // woodland/hills
-    return 1.0f; // clear land / road-like
+    if (pseudo >= 7) return 2.4f;
+    if (pseudo >= 4) return 1.6f;
+    return 1.0f;
 }
 
 bool Unit::ShouldReturnToBase() const {
@@ -38,6 +38,38 @@ bool Unit::ShouldReturnToBase() const {
 
 bool Unit::AtBase() const {
     return base_x_ >= 0 && base_y_ >= 0 && std::abs(static_cast<int>(x_) - base_x_) <= 4 && std::abs(static_cast<int>(y_) - base_y_) <= 4;
+}
+
+float Unit::GetFormationOffsetX() const {
+    if (formation_style_ == FormationStyle::None) return 0.0f;
+
+    const float spread = 18.0f + static_cast<float>(formation_index_) * 12.0f;
+    switch (formation_style_) {
+        case FormationStyle::Column:
+            return std::cos(heading_ + (formation_index_ % 2 == 0 ? 0.0f : 1.57079632679f)) * spread;
+        case FormationStyle::Wedge:
+            return std::cos(heading_ + (formation_index_ % 2 == 0 ? 0.0f : 0.8f)) * spread;
+        case FormationStyle::Line:
+            return std::cos(heading_) * spread;
+        default:
+            return 0.0f;
+    }
+}
+
+float Unit::GetFormationOffsetY() const {
+    if (formation_style_ == FormationStyle::None) return 0.0f;
+
+    const float spread = 18.0f + static_cast<float>(formation_index_) * 12.0f;
+    switch (formation_style_) {
+        case FormationStyle::Column:
+            return std::sin(heading_ + (formation_index_ % 2 == 0 ? 0.0f : 1.57079632679f)) * spread;
+        case FormationStyle::Wedge:
+            return std::sin(heading_ + (formation_index_ % 2 == 0 ? 0.0f : 0.8f)) * spread;
+        case FormationStyle::Line:
+            return std::sin(heading_) * spread;
+        default:
+            return 0.0f;
+    }
 }
 
 bool Unit::IsMoving() const {
@@ -51,6 +83,16 @@ void Unit::tick() {
 
     if (health_ > 0 && health_ < 100 && AtBase()) {
         health_ = std::min(100, health_ + 2);
+    }
+
+    if (formation_leader_id_ >= 0 && formation_leader_id_ != id_) {
+        Unit *leader = UnitManager::Instance().GetUnitById(formation_leader_id_);
+        if (leader != nullptr && leader->IsAlive()) {
+            const float target_x = leader->GetX() + GetFormationOffsetX();
+            const float target_y = leader->GetY() + GetFormationOffsetY();
+            move_target_x_ = static_cast<int>(target_x);
+            move_target_y_ = static_cast<int>(target_y);
+        }
     }
 
     if (attack_target_id_ >= 0) {
@@ -79,11 +121,13 @@ void Unit::tick() {
             }
 
             SetMoveTarget(static_cast<int>(target->GetX()), static_cast<int>(target->GetY()));
+            ClearFormation();
         }
     }
 
     if (ShouldReturnToBase()) {
         SetMoveTarget(base_x_, base_y_);
+        ClearFormation();
     }
 
     if (!HasMoveTarget()) return;
@@ -128,6 +172,22 @@ void Unit::SetMoveTarget(int wx, int wy) {
     move_target_y_ = wy;
 }
 
+void Unit::SetFormation(int leader_id, int formation_index, FormationStyle style) {
+    formation_leader_id_ = leader_id;
+    formation_index_ = formation_index;
+    formation_style_ = style;
+}
+
+void Unit::ClearFormation() {
+    formation_leader_id_ = -1;
+    formation_index_ = 0;
+    formation_style_ = FormationStyle::None;
+}
+
+bool Unit::HasFormation() const {
+    return formation_leader_id_ >= 0 && formation_style_ != FormationStyle::None;
+}
+
 void Unit::SetBasePosition(int wx, int wy) {
     base_x_ = wx;
     base_y_ = wy;
@@ -163,6 +223,7 @@ void Unit::TakeDamage(int amount) {
     health_ = std::max(0, health_ - amount);
     if (health_ <= 0) {
         ClearAttackTarget();
+        ClearFormation();
         Stop();
     }
 }

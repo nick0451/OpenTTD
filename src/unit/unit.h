@@ -6,6 +6,7 @@
 class Unit {
 public:
     enum class Type { Infantry, Armor, Artillery, Air, Naval };
+    enum class FormationStyle { None, Column, Wedge, Line };
 
     Unit(Type type, int id);
     ~Unit();
@@ -23,6 +24,9 @@ public:
 
     // RTS-style orders
     void SetMoveTarget(int wx, int wy);
+    void SetFormation(int leader_id, int formation_index, FormationStyle style = FormationStyle::Column);
+    void ClearFormation();
+    bool HasFormation() const;
     void SetBasePosition(int wx, int wy);
     bool HasBase() const;
     void SetAttackTarget(int target_unit_id);
@@ -37,6 +41,8 @@ private:
     float GetTerrainPenaltyAt(int wx, int wy) const;
     bool ShouldReturnToBase() const;
     bool AtBase() const;
+    float GetFormationOffsetX() const;
+    float GetFormationOffsetY() const;
 
     int id_;
     Type type_;
@@ -48,5 +54,8 @@ private:
     int attack_cooldown_ = 0;
     int base_x_ = -1;
     int base_y_ = -1;
+    int formation_leader_id_ = -1;
+    int formation_index_ = 0;
+    FormationStyle formation_style_ = FormationStyle::None;
     int health_;
 };

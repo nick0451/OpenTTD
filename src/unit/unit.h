@@ -7,6 +7,7 @@ class Unit {
 public:
     enum class Type { Infantry, Armor, Artillery, Air, Naval };
     enum class FormationStyle { None, Column, Wedge, Line };
+    enum class TacticalState { Advance, Hold, Retreat };
 
     Unit(Type type, int id);
     ~Unit();
@@ -21,11 +22,13 @@ public:
     bool IsAlive() const { return health_ > 0; }
     bool IsMoving() const;
     bool IsUnderSupplyPressure() const;
+    TacticalState GetTacticalState() const { return tactical_state_; }
 
     void tick();
 
     // RTS-style orders
     void SetMoveTarget(int wx, int wy);
+    void SetTacticalState(TacticalState state);
     void SetFormation(int leader_id, int formation_index, FormationStyle style = FormationStyle::Column);
     void ClearFormation();
     bool HasFormation() const;
@@ -41,6 +44,8 @@ public:
 private:
     float GetMoveSpeed() const;
     float GetTerrainPenaltyAt(int wx, int wy) const;
+    float GetAttackRange() const;
+    int GetAttackDamage() const;
     float GetSupplyPenalty() const;
     bool ShouldReturnToBase() const;
     bool AtBase() const;
@@ -60,6 +65,7 @@ private:
     int formation_leader_id_ = -1;
     int formation_index_ = 0;
     FormationStyle formation_style_ = FormationStyle::None;
+    TacticalState tactical_state_ = TacticalState::Advance;
     int health_;
     int supply_ = 100;
 };

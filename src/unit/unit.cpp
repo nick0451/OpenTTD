@@ -22,6 +22,28 @@ float Unit::GetMoveSpeed() const {
     }
 }
 
+float Unit::GetAttackRange() const {
+    switch (type_) {
+        case Type::Infantry: return 10.0f;
+        case Type::Armor:    return 14.0f;
+        case Type::Artillery:return 18.0f;
+        case Type::Air:      return 20.0f;
+        case Type::Naval:    return 16.0f;
+        default:            return 12.0f;
+    }
+}
+
+int Unit::GetAttackDamage() const {
+    switch (type_) {
+        case Type::Infantry: return 8;
+        case Type::Armor:    return 14;
+        case Type::Artillery:return 18;
+        case Type::Air:      return 12;
+        case Type::Naval:    return 10;
+        default:            return 10;
+    }
+}
+
 float Unit::GetTerrainPenaltyAt(int wx, int wy) const {
     const int tile_x = wx / 32;
     const int tile_y = wy / 32;
@@ -120,6 +142,15 @@ void Unit::tick() {
         }
     }
 
+    if (tactical_state_ == TacticalState::Retreat && base_x_ >= 0 && base_y_ >= 0) {
+        SetMoveTarget(base_x_, base_y_);
+        ClearAttackTarget();
+    }
+
+    if (health_ < 35 && tactical_state_ == TacticalState::Advance) {
+        SetTacticalState(TacticalState::Retreat);
+    }
+
     if (attack_target_id_ >= 0) {
         Unit *target = UnitManager::Instance().GetUnitById(attack_target_id_);
         if (target == nullptr || !target->IsAlive()) {
@@ -128,7 +159,7 @@ void Unit::tick() {
             const float dx = target->GetX() - x_;
             const float dy = target->GetY() - y_;
             const float dist = std::sqrt(dx * dx + dy * dy);
-            const float attack_range = 12.0f;
+            const float attack_range = GetAttackRange();
 
             if (dist <= attack_range) {
                 const float target_angle = std::atan2(dy, dx);
@@ -139,7 +170,7 @@ void Unit::tick() {
                 }
 
                 if (attack_cooldown_ <= 0) {
-                    target->TakeDamage(12);
+                    target->TakeDamage(GetAttackDamage());
                     attack_cooldown_ = 20;
                 }
                 return;
@@ -196,6 +227,10 @@ void Unit::tick() {
 void Unit::SetMoveTarget(int wx, int wy) {
     move_target_x_ = wx;
     move_target_y_ = wy;
+}
+
+void Unit::SetTacticalState(TacticalState state) {
+    tactical_state_ = state;
 }
 
 void Unit::SetFormation(int leader_id, int formation_index, FormationStyle style) {

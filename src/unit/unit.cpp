@@ -32,8 +32,19 @@ float Unit::GetTerrainPenaltyAt(int wx, int wy) const {
     return 1.0f;
 }
 
+float Unit::GetSupplyPenalty() const {
+    if (supply_ >= 75) return 1.0f;
+    if (supply_ >= 40) return 1.2f;
+    if (supply_ >= 20) return 1.5f;
+    return 1.9f;
+}
+
+bool Unit::IsUnderSupplyPressure() const {
+    return supply_ < 50;
+}
+
 bool Unit::ShouldReturnToBase() const {
-    return base_x_ >= 0 && base_y_ >= 0 && health_ < 60;
+    return base_x_ >= 0 && base_y_ >= 0 && (health_ < 60 || supply_ < 20);
 }
 
 bool Unit::AtBase() const {
@@ -81,8 +92,22 @@ void Unit::tick() {
         --attack_cooldown_;
     }
 
+    if (base_x_ >= 0 && base_y_ >= 0) {
+        const int dist = std::abs(static_cast<int>(x_) - base_x_) + std::abs(static_cast<int>(y_) - base_y_);
+        if (dist > 180) {
+            supply_ = std::max(0, supply_ - 2);
+        } else if (dist < 60) {
+            supply_ = std::min(100, supply_ + 1);
+        }
+    }
+
     if (health_ > 0 && health_ < 100 && AtBase()) {
         health_ = std::min(100, health_ + 2);
+        supply_ = std::min(100, supply_ + 2);
+    }
+
+    if (IsUnderSupplyPressure() && !AtBase()) {
+        health_ = std::max(0, health_ - 1);
     }
 
     if (formation_leader_id_ >= 0 && formation_leader_id_ != id_) {
@@ -152,7 +177,8 @@ void Unit::tick() {
     }
 
     const float terrain_penalty = GetTerrainPenaltyAt(static_cast<int>(x_), static_cast<int>(y_));
-    const float speed = GetMoveSpeed() / terrain_penalty;
+    const float supply_penalty = GetSupplyPenalty();
+    const float speed = (GetMoveSpeed() / terrain_penalty) / supply_penalty;
     const float step_x = std::cos(heading_) * speed;
     const float step_y = std::sin(heading_) * speed;
 

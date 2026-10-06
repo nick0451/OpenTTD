@@ -17,8 +17,10 @@ public:
     float GetY() const { return y_; }
     float GetHeading() const { return heading_; }
     int GetHealth() const { return health_; }
+    int GetSupply() const { return supply_; }
     bool IsAlive() const { return health_ > 0; }
     bool IsMoving() const;
+    bool IsUnderSupplyPressure() const;
 
     void tick();
 
@@ -39,6 +41,7 @@ public:
 private:
     float GetMoveSpeed() const;
     float GetTerrainPenaltyAt(int wx, int wy) const;
+    float GetSupplyPenalty() const;
     bool ShouldReturnToBase() const;
     bool AtBase() const;
     float GetFormationOffsetX() const;
@@ -58,4 +61,5 @@ private:
     int formation_index_ = 0;
     FormationStyle formation_style_ = FormationStyle::None;
     int health_;
+    int supply_ = 100;
 };

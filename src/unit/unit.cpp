@@ -365,6 +365,13 @@ void Unit::tick() {
         } else {
             SetMoveTarget(static_cast<int>(priority_target->GetX()), static_cast<int>(priority_target->GetY()));
         }
+    } else if (priority_target == nullptr && tactical_state_ == TacticalState::Advance && health_ > 35 && supply_ > 25) {
+        const int objective_x = UnitManager::Instance().GetObjectiveX();
+        const int objective_y = UnitManager::Instance().GetObjectiveY();
+        const float dist_to_objective = std::sqrt((objective_x - x_) * (objective_x - x_) + (objective_y - y_) * (objective_y - y_));
+        if (dist_to_objective > 8.0f) {
+            SetMoveTarget(objective_x, objective_y);
+        }
     }
 
     if (tactical_state_ == TacticalState::Hold && priority_target != nullptr) {

@@ -58,21 +58,38 @@ void UnitManager::SpawnDemoBattleScenario()
     const int player_base_y = 120;
     const int enemy_base_x = 560;
     const int enemy_base_y = 420;
+    objective_x_ = 320;
+    objective_y_ = 240;
 
     for (int i = 0; i < 5; ++i) {
         Unit *u = CreateUnit(Unit::Type::Infantry);
         u->SetOwner(Unit::Owner::Player);
         u->SetBasePosition(player_base_x + (i * 26), player_base_y + ((i % 2) * 18));
-        u->SetMoveTarget(player_base_x + 120 + (i * 20), player_base_y + 140 + ((i % 3) * 16));
         u->SetTacticalState(Unit::TacticalState::Advance);
+        u->SetMoveTarget(objective_x_ + (i * 10), objective_y_ + ((i % 3) * 18));
     }
 
     for (int i = 0; i < 4; ++i) {
         Unit *u = CreateUnit(Unit::Type::Armor);
         u->SetOwner(Unit::Owner::Enemy);
         u->SetBasePosition(enemy_base_x - (i * 28), enemy_base_y - ((i % 2) * 18));
-        u->SetMoveTarget(enemy_base_x - 120, enemy_base_y - 120);
         u->SetTacticalState(Unit::TacticalState::Advance);
+        u->SetMoveTarget(objective_x_ - (i * 12), objective_y_ - ((i % 2) * 14));
+    }
+}
+
+void UnitManager::SetScenarioObjective(int x, int y)
+{
+    objective_x_ = x;
+    objective_y_ = y;
+
+    for (Unit *u : units_) {
+        if (u == nullptr) continue;
+        if (u->GetOwner() == Unit::Owner::Player || u->GetOwner() == Unit::Owner::Enemy) {
+            if (!u->HasAttackTarget() && !u->HasMoveTarget()) {
+                u->SetMoveTarget(x, y);
+            }
+        }
     }
 }
 

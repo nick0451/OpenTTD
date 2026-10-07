@@ -53,6 +53,7 @@ void UnitManager::SpawnDemoBattleScenario()
         delete u;
     }
     units_.clear();
+    town_objectives_.clear();
 
     const int player_base_x = 80;
     const int player_base_y = 120;
@@ -61,12 +62,16 @@ void UnitManager::SpawnDemoBattleScenario()
     objective_x_ = 320;
     objective_y_ = 240;
 
+    AddTownObjective(140, 160, 22, 18);
+    AddTownObjective(320, 240, 30, 24);
+    AddTownObjective(520, 370, 28, 20);
+
     for (int i = 0; i < 5; ++i) {
         Unit *u = CreateUnit(Unit::Type::Infantry);
         u->SetOwner(Unit::Owner::Player);
         u->SetBasePosition(player_base_x + (i * 26), player_base_y + ((i % 2) * 18));
         u->SetTacticalState(Unit::TacticalState::Advance);
-        u->SetMoveTarget(objective_x_ + (i * 10), objective_y_ + ((i % 3) * 18));
+        u->SetAssignedObjective(140 + (i % 2) * 20, 160 + (i % 3) * 16);
     }
 
     for (int i = 0; i < 4; ++i) {
@@ -74,7 +79,45 @@ void UnitManager::SpawnDemoBattleScenario()
         u->SetOwner(Unit::Owner::Enemy);
         u->SetBasePosition(enemy_base_x - (i * 28), enemy_base_y - ((i % 2) * 18));
         u->SetTacticalState(Unit::TacticalState::Advance);
-        u->SetMoveTarget(objective_x_ - (i * 12), objective_y_ - ((i % 2) * 14));
+        u->SetAssignedObjective(520 - (i % 2) * 26, 370 - (i % 3) * 18);
+    }
+
+    AssignDefensiveRoles();
+}
+
+void UnitManager::AddTownObjective(int x, int y, int defense_value, int resource_value)
+{
+    TownObjective objective;
+    objective.x = x;
+    objective.y = y;
+    objective.defense_value = defense_value;
+    objective.resource_value = resource_value;
+    town_objectives_.push_back(objective);
+}
+
+void UnitManager::AssignDefensiveRoles()
+{
+    for (Unit *u : units_) {
+        if (u == nullptr) continue;
+
+        int best_town_index = -1;
+        int best_distance = std::numeric_limits<int>::max();
+        for (size_t i = 0; i < town_objectives_.size(); ++i) {
+            const TownObjective &objective = town_objectives_[i];
+            const int distance = std::abs(static_cast<int>(u->GetX()) - objective.x) + std::abs(static_cast<int>(u->GetY()) - objective.y);
+            if (distance < best_distance) {
+                best_distance = distance;
+                best_town_index = static_cast<int>(i);
+            }
+        }
+
+        if (best_town_index >= 0) {
+            const TownObjective &objective = town_objectives_[best_town_index];
+            u->SetAssignedObjective(objective.x, objective.y);
+            if (u->GetRoleDefenseWeight() >= 2) {
+                u->SetTacticalState(Unit::TacticalState::Hold);
+            }
+        }
     }
 }
 

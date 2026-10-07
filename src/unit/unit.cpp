@@ -52,6 +52,28 @@ int Unit::GetAttackDamage() const {
     }
 }
 
+int Unit::GetRoleAttackWeight() const {
+    switch (type_) {
+        case Type::Infantry: return 1;
+        case Type::Armor:    return 3;
+        case Type::Artillery:return 2;
+        case Type::Air:      return 2;
+        case Type::Naval:    return 1;
+        default:            return 1;
+    }
+}
+
+int Unit::GetRoleDefenseWeight() const {
+    switch (type_) {
+        case Type::Infantry: return 3;
+        case Type::Armor:    return 2;
+        case Type::Artillery:return 1;
+        case Type::Air:      return 1;
+        case Type::Naval:    return 2;
+        default:            return 1;
+    }
+}
+
 float Unit::GetTerrainPenaltyAt(int wx, int wy) const {
     const int tile_x = wx / 32;
     const int tile_y = wy / 32;
@@ -159,6 +181,13 @@ Unit *Unit::FindBestThreatTarget() const {
     }
 
     return best_target;
+}
+
+int Unit::GetTownDefenseRating(int town_x, int town_y) const {
+    const int distance = std::abs(static_cast<int>(x_) - town_x) + std::abs(static_cast<int>(y_) - town_y);
+    if (distance <= 20) return 12 + GetRoleDefenseWeight() * 4;
+    if (distance <= 60) return 8 + GetRoleDefenseWeight() * 2;
+    return 0;
 }
 
 bool Unit::ShouldReturnToBase() const {
@@ -374,6 +403,13 @@ void Unit::tick() {
         }
     }
 
+    if (HasAssignedObjective()) {
+        const float dist_to_objective = std::sqrt((assigned_objective_x_ - x_) * (assigned_objective_x_ - x_) + (assigned_objective_y_ - y_) * (assigned_objective_y_ - y_));
+        if (dist_to_objective > 8.0f && !HasAttackTarget() && !HasMoveTarget()) {
+            SetMoveTarget(assigned_objective_x_, assigned_objective_y_);
+        }
+    }
+
     if (tactical_state_ == TacticalState::Hold && priority_target != nullptr) {
         const float dist_to_enemy = std::sqrt((priority_target->GetX() - x_) * (priority_target->GetX() - x_) + (priority_target->GetY() - y_) * (priority_target->GetY() - y_));
         if (dist_to_enemy <= GetAttackRange() * 1.6f) {
@@ -519,6 +555,15 @@ void Unit::SetBasePosition(int wx, int wy) {
 
 bool Unit::HasBase() const {
     return base_x_ >= 0 && base_y_ >= 0;
+}
+
+void Unit::SetAssignedObjective(int wx, int wy) {
+    assigned_objective_x_ = wx;
+    assigned_objective_y_ = wy;
+}
+
+bool Unit::HasAssignedObjective() const {
+    return assigned_objective_x_ >= 0 && assigned_objective_y_ >= 0;
 }
 
 void Unit::SetAttackTarget(int target_unit_id) {

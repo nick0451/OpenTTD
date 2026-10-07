@@ -43,10 +43,14 @@ public:
     bool HasFormation() const;
     void SetBasePosition(int wx, int wy);
     bool HasBase() const;
+    void SetAssignedObjective(int wx, int wy);
+    bool HasAssignedObjective() const;
     void SetAttackTarget(int target_unit_id);
     void ClearAttackTarget();
     bool HasMoveTarget() const;
     bool HasAttackTarget() const;
+    int GetRoleAttackWeight() const;
+    int GetRoleDefenseWeight() const;
     void TakeDamage(int amount);
     void Stop();
 
@@ -57,6 +61,7 @@ private:
     int GetAttackDamage() const;
     float GetSupplyPenalty() const;
     float GetSupplyLinePenalty() const;
+    int GetTownDefenseRating(int town_x, int town_y) const;
     std::vector<std::pair<int, int>> BuildRoute(int target_x, int target_y) const;
     bool ShouldReturnToBase() const;
     bool AtBase() const;
@@ -70,6 +75,8 @@ private:
     float heading_;
     int move_target_x_ = -1;
     int move_target_y_ = -1;
+    int assigned_objective_x_ = -1;
+    int assigned_objective_y_ = -1;
     int attack_target_id_ = -1;
     int attack_cooldown_ = 0;
     int base_x_ = -1;

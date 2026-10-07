@@ -308,24 +308,25 @@ void Unit::tick() {
         }
     }
 
+    Unit *nearest_enemy = FindNearestEnemy();
+    const int frontline_pressure = GetFrontlinePressure();
+    const bool low_health = health_ < 35;
+    const bool low_supply = supply_ < 25;
+    const bool enemy_in_range = nearest_enemy != nullptr && std::sqrt((nearest_enemy->GetX() - x_) * (nearest_enemy->GetX() - x_) + (nearest_enemy->GetY() - y_) * (nearest_enemy->GetY() - y_)) <= GetAttackRange() * 1.5f;
+
+    if (low_health || low_supply || frontline_pressure >= 7) {
+        SetTacticalState(TacticalState::Retreat);
+    } else if (frontline_pressure >= 5) {
+        SetTacticalState(TacticalState::Hold);
+    } else if (nearest_enemy != nullptr && health_ > 40 && supply_ > 25) {
+        SetTacticalState(TacticalState::Advance);
+    }
+
     if (tactical_state_ == TacticalState::Retreat && base_x_ >= 0 && base_y_ >= 0) {
         SetMoveTarget(base_x_, base_y_);
         ClearAttackTarget();
     }
 
-    if (health_ < 35 && tactical_state_ == TacticalState::Advance) {
-        SetTacticalState(TacticalState::Retreat);
-    }
-
-    const int frontline_pressure = GetFrontlinePressure();
-    if (frontline_pressure >= 5 && tactical_state_ == TacticalState::Advance) {
-        SetTacticalState(TacticalState::Hold);
-    }
-    if (frontline_pressure >= 7 && tactical_state_ != TacticalState::Retreat) {
-        SetTacticalState(TacticalState::Retreat);
-    }
-
-    Unit *nearest_enemy = FindNearestEnemy();
     if (nearest_enemy != nullptr && tactical_state_ == TacticalState::Advance && health_ > 35 && supply_ > 25) {
         const float dist_to_enemy = std::sqrt((nearest_enemy->GetX() - x_) * (nearest_enemy->GetX() - x_) + (nearest_enemy->GetY() - y_) * (nearest_enemy->GetY() - y_));
         if (dist_to_enemy <= GetAttackRange() * 2.0f) {
@@ -344,6 +345,10 @@ void Unit::tick() {
 
     if (tactical_state_ == TacticalState::Retreat && base_x_ >= 0 && base_y_ >= 0) {
         SetMoveTarget(base_x_, base_y_);
+    }
+
+    if (enemy_in_range && nearest_enemy != nullptr && tactical_state_ != TacticalState::Retreat) {
+        SetAttackTarget(nearest_enemy->get_id());
     }
 
     if (!route_points_.empty() && route_index_ < static_cast<int>(route_points_.size())) {

@@ -111,6 +111,26 @@ int Unit::GetFrontlinePressure() const {
     return pressure;
 }
 
+Unit *Unit::FindNearestEnemy() const {
+    Unit *nearest = nullptr;
+    float best_distance = std::numeric_limits<float>::max();
+
+    for (Unit *other : UnitManager::Instance().GetUnits()) {
+        if (other == nullptr || other == this || other->GetOwner() == owner_) continue;
+
+        const float dx = other->GetX() - x_;
+        const float dy = other->GetY() - y_;
+        const float dist = std::sqrt(dx * dx + dy * dy);
+
+        if (dist < best_distance) {
+            best_distance = dist;
+            nearest = other;
+        }
+    }
+
+    return nearest;
+}
+
 bool Unit::ShouldReturnToBase() const {
     if (base_x_ < 0 || base_y_ < 0) return false;
 
@@ -303,6 +323,27 @@ void Unit::tick() {
     }
     if (frontline_pressure >= 7 && tactical_state_ != TacticalState::Retreat) {
         SetTacticalState(TacticalState::Retreat);
+    }
+
+    Unit *nearest_enemy = FindNearestEnemy();
+    if (nearest_enemy != nullptr && tactical_state_ == TacticalState::Advance && health_ > 35 && supply_ > 25) {
+        const float dist_to_enemy = std::sqrt((nearest_enemy->GetX() - x_) * (nearest_enemy->GetX() - x_) + (nearest_enemy->GetY() - y_) * (nearest_enemy->GetY() - y_));
+        if (dist_to_enemy <= GetAttackRange() * 2.0f) {
+            SetAttackTarget(nearest_enemy->get_id());
+        } else {
+            SetMoveTarget(static_cast<int>(nearest_enemy->GetX()), static_cast<int>(nearest_enemy->GetY()));
+        }
+    }
+
+    if (tactical_state_ == TacticalState::Hold && nearest_enemy != nullptr) {
+        const float dist_to_enemy = std::sqrt((nearest_enemy->GetX() - x_) * (nearest_enemy->GetX() - x_) + (nearest_enemy->GetY() - y_) * (nearest_enemy->GetY() - y_));
+        if (dist_to_enemy <= GetAttackRange() * 1.6f) {
+            SetAttackTarget(nearest_enemy->get_id());
+        }
+    }
+
+    if (tactical_state_ == TacticalState::Retreat && base_x_ >= 0 && base_y_ >= 0) {
+        SetMoveTarget(base_x_, base_y_);
     }
 
     if (!route_points_.empty() && route_index_ < static_cast<int>(route_points_.size())) {

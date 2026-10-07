@@ -29,6 +29,7 @@ public:
     Owner GetOwner() const { return owner_; }
     void SetOwner(Owner owner) { owner_ = owner; }
     int GetFrontlinePressure() const;
+    Unit *FindNearestEnemy() const;
 
     void tick();
 

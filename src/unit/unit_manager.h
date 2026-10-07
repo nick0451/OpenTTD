@@ -11,6 +11,7 @@ public:
     const std::vector<Unit*> &GetUnits() const { return units_; }
     void SelectUnit(int id);
     void ClearSelection();
+    void SpawnDemoBattleScenario();
     void FormGroup(int leader_id, int size = 4, Unit::FormationStyle style = Unit::FormationStyle::Column);
     int GetSelectedUnitId() const { return selected_unit_id_; }
     bool HasSelectedUnit() const { return selected_unit_id_ >= 0; }

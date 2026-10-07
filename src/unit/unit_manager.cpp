@@ -18,6 +18,10 @@ Unit *UnitManager::CreateUnit(Unit::Type type)
 
 void UnitManager::TickAll()
 {
+    if (Instance().units_.empty()) {
+        Instance().SpawnDemoBattleScenario();
+    }
+
     for (Unit *u : Instance().units_) {
         if (u) u->tick();
     }
@@ -41,6 +45,35 @@ void UnitManager::SelectUnit(int id)
 void UnitManager::ClearSelection()
 {
     selected_unit_id_ = -1;
+}
+
+void UnitManager::SpawnDemoBattleScenario()
+{
+    for (Unit *u : units_) {
+        delete u;
+    }
+    units_.clear();
+
+    const int player_base_x = 80;
+    const int player_base_y = 120;
+    const int enemy_base_x = 560;
+    const int enemy_base_y = 420;
+
+    for (int i = 0; i < 5; ++i) {
+        Unit *u = CreateUnit(Unit::Type::Infantry);
+        u->SetOwner(Unit::Owner::Player);
+        u->SetBasePosition(player_base_x + (i * 26), player_base_y + ((i % 2) * 18));
+        u->SetMoveTarget(player_base_x + 120 + (i * 20), player_base_y + 140 + ((i % 3) * 16));
+        u->SetTacticalState(Unit::TacticalState::Advance);
+    }
+
+    for (int i = 0; i < 4; ++i) {
+        Unit *u = CreateUnit(Unit::Type::Armor);
+        u->SetOwner(Unit::Owner::Enemy);
+        u->SetBasePosition(enemy_base_x - (i * 28), enemy_base_y - ((i % 2) * 18));
+        u->SetMoveTarget(enemy_base_x - 120, enemy_base_y - 120);
+        u->SetTacticalState(Unit::TacticalState::Advance);
+    }
 }
 
 void UnitManager::FormGroup(int leader_id, int size, Unit::FormationStyle style)

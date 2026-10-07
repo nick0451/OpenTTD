@@ -10,6 +10,7 @@ public:
     enum class Type { Infantry, Armor, Artillery, Air, Naval };
     enum class FormationStyle { None, Column, Wedge, Line };
     enum class TacticalState { Advance, Hold, Retreat };
+    enum class Owner { Player, Enemy };
 
     Unit(Type type, int id);
     ~Unit();
@@ -25,6 +26,9 @@ public:
     bool IsMoving() const;
     bool IsUnderSupplyPressure() const;
     TacticalState GetTacticalState() const { return tactical_state_; }
+    Owner GetOwner() const { return owner_; }
+    void SetOwner(Owner owner) { owner_ = owner; }
+    int GetFrontlinePressure() const;
 
     void tick();
 
@@ -58,6 +62,7 @@ private:
 
     int id_;
     Type type_;
+    Owner owner_ = Owner::Player;
     float x_, y_;
     float heading_;
     int move_target_x_ = -1;

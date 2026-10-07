@@ -16,14 +16,18 @@ int Unit::get_id() const { return id_; }
 Unit::Type Unit::get_type() const { return type_; }
 
 float Unit::GetMoveSpeed() const {
+    float base_speed = 1.0f;
     switch (type_) {
-        case Type::Infantry: return 0.8f;
-        case Type::Armor:    return 1.5f;
-        case Type::Artillery:return 0.7f;
-        case Type::Air:      return 2.2f;
-        case Type::Naval:    return 1.1f;
-        default:            return 1.0f;
+        case Type::Infantry: base_speed = 0.8f; break;
+        case Type::Armor:    base_speed = 1.5f; break;
+        case Type::Artillery:base_speed = 0.7f; break;
+        case Type::Air:      base_speed = 2.2f; break;
+        case Type::Naval:    base_speed = 1.1f; break;
+        default:            base_speed = 1.0f; break;
     }
+
+    const float pressure_penalty = std::min(0.55f, GetFrontlinePressure() * 0.08f);
+    return base_speed * (1.0f - pressure_penalty);
 }
 
 float Unit::GetAttackRange() const {
@@ -70,11 +74,12 @@ float Unit::GetTerrainPenaltyAt(int wx, int wy) const {
 float Unit::GetSupplyPenalty() const {
     const float supply_pressure = (100.0f - std::max(0, supply_)) / 100.0f;
     const float logistics_penalty = std::max(0.0f, GetSupplyLinePenalty() - 1.0f);
+    const float frontline_penalty = std::min(1.0f, GetFrontlinePressure() * 0.12f);
 
-    if (supply_ >= 75) return 1.0f + logistics_penalty;
-    if (supply_ >= 40) return 1.2f + logistics_penalty;
-    if (supply_ >= 20) return 1.5f + supply_pressure + logistics_penalty;
-    return 1.9f + supply_pressure + logistics_penalty;
+    if (supply_ >= 75) return 1.0f + logistics_penalty + frontline_penalty;
+    if (supply_ >= 40) return 1.2f + logistics_penalty + frontline_penalty;
+    if (supply_ >= 20) return 1.5f + supply_pressure + logistics_penalty + frontline_penalty;
+    return 1.9f + supply_pressure + logistics_penalty + frontline_penalty;
 }
 
 float Unit::GetSupplyLinePenalty() const {
@@ -88,7 +93,22 @@ float Unit::GetSupplyLinePenalty() const {
 }
 
 bool Unit::IsUnderSupplyPressure() const {
-    return supply_ < 50 || GetSupplyLinePenalty() > 1.25f;
+    return supply_ < 50 || GetSupplyLinePenalty() > 1.25f || GetFrontlinePressure() > 3;
+}
+
+int Unit::GetFrontlinePressure() const {
+    int pressure = 0;
+    for (const Unit *other : UnitManager::Instance().GetUnits()) {
+        if (other == nullptr || other == this || other->GetOwner() == owner_) continue;
+
+        const float dx = other->GetX() - x_;
+        const float dy = other->GetY() - y_;
+        const float dist = std::sqrt(dx * dx + dy * dy);
+        if (dist <= 180.0f) {
+            pressure += static_cast<int>((180.0f - dist) / 28.0f);
+        }
+    }
+    return pressure;
 }
 
 bool Unit::ShouldReturnToBase() const {
@@ -274,6 +294,14 @@ void Unit::tick() {
     }
 
     if (health_ < 35 && tactical_state_ == TacticalState::Advance) {
+        SetTacticalState(TacticalState::Retreat);
+    }
+
+    const int frontline_pressure = GetFrontlinePressure();
+    if (frontline_pressure >= 5 && tactical_state_ == TacticalState::Advance) {
+        SetTacticalState(TacticalState::Hold);
+    }
+    if (frontline_pressure >= 7 && tactical_state_ != TacticalState::Retreat) {
         SetTacticalState(TacticalState::Retreat);
     }
 

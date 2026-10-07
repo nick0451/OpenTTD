@@ -131,6 +131,36 @@ Unit *Unit::FindNearestEnemy() const {
     return nearest;
 }
 
+float Unit::EvaluateTargetPriority(const Unit *target) const {
+    if (target == nullptr || target == this || target->GetOwner() == owner_) return -std::numeric_limits<float>::max();
+
+    const float dx = target->GetX() - x_;
+    const float dy = target->GetY() - y_;
+    const float dist = std::sqrt(dx * dx + dy * dy);
+    const float pressure_bonus = static_cast<float>(target->GetFrontlinePressure()) * 1.5f;
+    const float health_bonus = static_cast<float>(target->GetHealth()) * 0.25f;
+    const float danger_penalty = static_cast<float>(GetFrontlinePressure()) * 1.0f;
+
+    return (200.0f - dist) + pressure_bonus + health_bonus - danger_penalty;
+}
+
+Unit *Unit::FindBestThreatTarget() const {
+    Unit *best_target = nullptr;
+    float best_score = -std::numeric_limits<float>::max();
+
+    for (Unit *other : UnitManager::Instance().GetUnits()) {
+        if (other == nullptr || other == this || other->GetOwner() == owner_) continue;
+
+        const float score = EvaluateTargetPriority(other);
+        if (score > best_score) {
+            best_score = score;
+            best_target = other;
+        }
+    }
+
+    return best_target;
+}
+
 bool Unit::ShouldReturnToBase() const {
     if (base_x_ < 0 || base_y_ < 0) return false;
 
@@ -309,6 +339,7 @@ void Unit::tick() {
     }
 
     Unit *nearest_enemy = FindNearestEnemy();
+    Unit *priority_target = FindBestThreatTarget();
     const int frontline_pressure = GetFrontlinePressure();
     const bool low_health = health_ < 35;
     const bool low_supply = supply_ < 25;
@@ -318,7 +349,7 @@ void Unit::tick() {
         SetTacticalState(TacticalState::Retreat);
     } else if (frontline_pressure >= 5) {
         SetTacticalState(TacticalState::Hold);
-    } else if (nearest_enemy != nullptr && health_ > 40 && supply_ > 25) {
+    } else if (priority_target != nullptr && health_ > 40 && supply_ > 25) {
         SetTacticalState(TacticalState::Advance);
     }
 
@@ -327,19 +358,19 @@ void Unit::tick() {
         ClearAttackTarget();
     }
 
-    if (nearest_enemy != nullptr && tactical_state_ == TacticalState::Advance && health_ > 35 && supply_ > 25) {
-        const float dist_to_enemy = std::sqrt((nearest_enemy->GetX() - x_) * (nearest_enemy->GetX() - x_) + (nearest_enemy->GetY() - y_) * (nearest_enemy->GetY() - y_));
+    if (priority_target != nullptr && tactical_state_ == TacticalState::Advance && health_ > 35 && supply_ > 25) {
+        const float dist_to_enemy = std::sqrt((priority_target->GetX() - x_) * (priority_target->GetX() - x_) + (priority_target->GetY() - y_) * (priority_target->GetY() - y_));
         if (dist_to_enemy <= GetAttackRange() * 2.0f) {
-            SetAttackTarget(nearest_enemy->get_id());
+            SetAttackTarget(priority_target->get_id());
         } else {
-            SetMoveTarget(static_cast<int>(nearest_enemy->GetX()), static_cast<int>(nearest_enemy->GetY()));
+            SetMoveTarget(static_cast<int>(priority_target->GetX()), static_cast<int>(priority_target->GetY()));
         }
     }
 
-    if (tactical_state_ == TacticalState::Hold && nearest_enemy != nullptr) {
-        const float dist_to_enemy = std::sqrt((nearest_enemy->GetX() - x_) * (nearest_enemy->GetX() - x_) + (nearest_enemy->GetY() - y_) * (nearest_enemy->GetY() - y_));
+    if (tactical_state_ == TacticalState::Hold && priority_target != nullptr) {
+        const float dist_to_enemy = std::sqrt((priority_target->GetX() - x_) * (priority_target->GetX() - x_) + (priority_target->GetY() - y_) * (priority_target->GetY() - y_));
         if (dist_to_enemy <= GetAttackRange() * 1.6f) {
-            SetAttackTarget(nearest_enemy->get_id());
+            SetAttackTarget(priority_target->get_id());
         }
     }
 

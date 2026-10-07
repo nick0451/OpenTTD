@@ -30,6 +30,8 @@ public:
     void SetOwner(Owner owner) { owner_ = owner; }
     int GetFrontlinePressure() const;
     Unit *FindNearestEnemy() const;
+    Unit *FindBestThreatTarget() const;
+    float EvaluateTargetPriority(const Unit *target) const;
 
     void tick();
 

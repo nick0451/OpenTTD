@@ -2,6 +2,8 @@
 
 #include "stdint.h"
 #include <cmath>
+#include <utility>
+#include <vector>
 
 class Unit {
 public:
@@ -47,6 +49,8 @@ private:
     float GetAttackRange() const;
     int GetAttackDamage() const;
     float GetSupplyPenalty() const;
+    float GetSupplyLinePenalty() const;
+    std::vector<std::pair<int, int>> BuildRoute(int target_x, int target_y) const;
     bool ShouldReturnToBase() const;
     bool AtBase() const;
     float GetFormationOffsetX() const;
@@ -66,6 +70,8 @@ private:
     int formation_index_ = 0;
     FormationStyle formation_style_ = FormationStyle::None;
     TacticalState tactical_state_ = TacticalState::Advance;
+    std::vector<std::pair<int, int>> route_points_;
+    int route_index_ = 0;
     int health_;
     int supply_ = 100;
 };

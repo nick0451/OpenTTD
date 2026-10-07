@@ -1,6 +1,10 @@
 #include "unit.h"
 #include "unit_manager.h"
 #include <algorithm>
+#include <limits>
+#include <queue>
+#include <utility>
+#include <vector>
 
 Unit::Unit(Type type, int id)
 : id_(id), type_(type), x_(0), y_(0), heading_(0), health_(100) {}
@@ -49,24 +53,49 @@ float Unit::GetTerrainPenaltyAt(int wx, int wy) const {
     const int tile_y = wy / 32;
     const int pseudo = (tile_x * 13 + tile_y * 17) % 10;
 
-    if (pseudo >= 7) return 2.4f;
-    if (pseudo >= 4) return 1.6f;
-    return 1.0f;
+    float terrain_cost = 1.0f;
+    if (pseudo >= 7) terrain_cost = 2.4f;
+    else if (pseudo >= 4) terrain_cost = 1.6f;
+
+    if (base_x_ >= 0 && base_y_ >= 0) {
+        const int base_tile_x = base_x_ / 32;
+        const int base_tile_y = base_y_ / 32;
+        const int approach = std::abs(tile_x - base_tile_x) + std::abs(tile_y - base_tile_y);
+        if (approach <= 4) terrain_cost *= 0.9f;
+    }
+
+    return terrain_cost;
 }
 
 float Unit::GetSupplyPenalty() const {
-    if (supply_ >= 75) return 1.0f;
-    if (supply_ >= 40) return 1.2f;
-    if (supply_ >= 20) return 1.5f;
-    return 1.9f;
+    const float supply_pressure = (100.0f - std::max(0, supply_)) / 100.0f;
+    const float logistics_penalty = std::max(0.0f, GetSupplyLinePenalty() - 1.0f);
+
+    if (supply_ >= 75) return 1.0f + logistics_penalty;
+    if (supply_ >= 40) return 1.2f + logistics_penalty;
+    if (supply_ >= 20) return 1.5f + supply_pressure + logistics_penalty;
+    return 1.9f + supply_pressure + logistics_penalty;
+}
+
+float Unit::GetSupplyLinePenalty() const {
+    if (base_x_ < 0 || base_y_ < 0) return 1.0f;
+
+    const int distance = std::abs(static_cast<int>(x_) - base_x_) + std::abs(static_cast<int>(y_) - base_y_);
+    if (distance <= 32) return 1.0f;
+    if (distance <= 96) return 1.1f + (distance / 300.0f);
+    if (distance <= 180) return 1.2f + (distance / 200.0f);
+    return 1.5f + (distance / 150.0f);
 }
 
 bool Unit::IsUnderSupplyPressure() const {
-    return supply_ < 50;
+    return supply_ < 50 || GetSupplyLinePenalty() > 1.25f;
 }
 
 bool Unit::ShouldReturnToBase() const {
-    return base_x_ >= 0 && base_y_ >= 0 && (health_ < 60 || supply_ < 20);
+    if (base_x_ < 0 || base_y_ < 0) return false;
+
+    const int distance = std::abs(static_cast<int>(x_) - base_x_) + std::abs(static_cast<int>(y_) - base_y_);
+    return health_ < 60 || supply_ < 25 || distance > 220;
 }
 
 bool Unit::AtBase() const {
@@ -107,6 +136,103 @@ float Unit::GetFormationOffsetY() const {
 
 bool Unit::IsMoving() const {
     return HasMoveTarget();
+}
+
+std::vector<std::pair<int, int>> Unit::BuildRoute(int target_x, int target_y) const {
+    if (target_x == static_cast<int>(std::round(x_)) && target_y == static_cast<int>(std::round(y_))) {
+        return {};
+    }
+
+    const int start_cell_x = static_cast<int>(std::round(x_ / 32.0f));
+    const int start_cell_y = static_cast<int>(std::round(y_ / 32.0f));
+    const int goal_cell_x = static_cast<int>(std::round(target_x / 32.0f));
+    const int goal_cell_y = static_cast<int>(std::round(target_y / 32.0f));
+
+    const int radius = 36;
+    const int min_x = std::max(0, std::min(start_cell_x, goal_cell_x) - radius);
+    const int max_x = std::max(start_cell_x, goal_cell_x) + radius;
+    const int min_y = std::max(0, std::min(start_cell_y, goal_cell_y) - radius);
+    const int max_y = std::max(start_cell_y, goal_cell_y) + radius;
+
+    const int width = max_x - min_x + 1;
+    const int height = max_y - min_y + 1;
+    std::vector<std::vector<int>> g_cost(width, std::vector<int>(height, std::numeric_limits<int>::max()));
+    std::vector<std::vector<int>> parent_x(width, std::vector<int>(height, -1));
+    std::vector<std::vector<int>> parent_y(width, std::vector<int>(height, -1));
+
+    const auto cell_id = [&](int cx, int cy) {
+        return (cy - min_y) * width + (cx - min_x);
+    };
+
+    const auto to_world_x = [&](int cx) { return (cx * 32) + 16; };
+    const auto to_world_y = [&](int cy) { return (cy * 32) + 16; };
+
+    std::priority_queue<std::pair<int, int>, std::vector<std::pair<int, int>>, std::greater<std::pair<int, int>>> frontier;
+    const int start_idx = cell_id(start_cell_x, start_cell_y);
+    const int goal_idx = cell_id(goal_cell_x, goal_cell_y);
+    g_cost[start_cell_x - min_x][start_cell_y - min_y] = 0;
+    frontier.emplace(0, start_idx);
+
+    while (!frontier.empty()) {
+        const auto current = frontier.top();
+        frontier.pop();
+
+        const int cx = current.second % width + min_x;
+        const int cy = current.second / width + min_y;
+        const int gx = cx - min_x;
+        const int gy = cy - min_y;
+
+        if (current.second == goal_idx) {
+            break;
+        }
+
+        for (int ox = -1; ox <= 1; ++ox) {
+            for (int oy = -1; oy <= 1; ++oy) {
+                if (ox == 0 && oy == 0) continue;
+                if (std::abs(ox) == 1 && std::abs(oy) == 1) continue;
+
+                const int nx = cx + ox;
+                const int ny = cy + oy;
+                if (nx < min_x || nx > max_x || ny < min_y || ny > max_y) continue;
+
+                const int n_gx = nx - min_x;
+                const int n_gy = ny - min_y;
+                const int step_cost = static_cast<int>(10.0f * GetTerrainPenaltyAt(nx * 32, ny * 32));
+                const int tentative = g_cost[gx][gy] + step_cost;
+
+                if (tentative < g_cost[n_gx][n_gy]) {
+                    g_cost[n_gx][n_gy] = tentative;
+                    parent_x[n_gx][n_gy] = cx;
+                    parent_y[n_gx][n_gy] = cy;
+                    const int heuristic = std::abs(goal_cell_x - nx) + std::abs(goal_cell_y - ny);
+                    frontier.emplace(tentative + heuristic, cell_id(nx, ny));
+                }
+            }
+        }
+    }
+
+    std::vector<std::pair<int, int>> route;
+    int cx = goal_cell_x;
+    int cy = goal_cell_y;
+    if (cx >= min_x && cx <= max_x && cy >= min_y && cy <= max_y && g_cost[cx - min_x][cy - min_y] != std::numeric_limits<int>::max()) {
+        while (cx != start_cell_x || cy != start_cell_y) {
+            route.emplace_back(to_world_x(cx), to_world_y(cy));
+            const int px = parent_x[cx - min_x][cy - min_y];
+            const int py = parent_y[cx - min_x][cy - min_y];
+            if (px == -1 || py == -1) break;
+            cx = px;
+            cy = py;
+        }
+    }
+
+    if (route.empty()) {
+        route.emplace_back(target_x, target_y);
+        return route;
+    }
+
+    std::reverse(route.begin(), route.end());
+    route.emplace_back(target_x, target_y);
+    return route;
 }
 
 void Unit::tick() {
@@ -151,6 +277,11 @@ void Unit::tick() {
         SetTacticalState(TacticalState::Retreat);
     }
 
+    if (!route_points_.empty() && route_index_ < static_cast<int>(route_points_.size())) {
+        move_target_x_ = route_points_[route_index_].first;
+        move_target_y_ = route_points_[route_index_].second;
+    }
+
     if (attack_target_id_ >= 0) {
         Unit *target = UnitManager::Instance().GetUnitById(attack_target_id_);
         if (target == nullptr || !target->IsAlive()) {
@@ -192,6 +323,15 @@ void Unit::tick() {
     const float dy = move_target_y_ - y_;
     const float dist = std::sqrt(dx * dx + dy * dy);
     if (dist <= 1.0f) {
+        if (!route_points_.empty()) {
+            ++route_index_;
+            if (route_index_ < static_cast<int>(route_points_.size())) {
+                move_target_x_ = route_points_[route_index_].first;
+                move_target_y_ = route_points_[route_index_].second;
+                return;
+            }
+        }
+
         if (base_x_ >= 0 && base_y_ >= 0 && move_target_x_ == base_x_ && move_target_y_ == base_y_) {
             health_ = std::min(100, health_ + 10);
         }
@@ -225,8 +365,16 @@ void Unit::tick() {
 }
 
 void Unit::SetMoveTarget(int wx, int wy) {
-    move_target_x_ = wx;
-    move_target_y_ = wy;
+    route_points_ = BuildRoute(wx, wy);
+    route_index_ = 0;
+    if (route_points_.empty()) {
+        move_target_x_ = wx;
+        move_target_y_ = wy;
+        return;
+    }
+
+    move_target_x_ = route_points_[0].first;
+    move_target_y_ = route_points_[0].second;
 }
 
 void Unit::SetTacticalState(TacticalState state) {
@@ -290,6 +438,8 @@ void Unit::TakeDamage(int amount) {
 }
 
 void Unit::Stop() {
+    route_points_.clear();
+    route_index_ = 0;
     move_target_x_ = -1;
     move_target_y_ = -1;
 }
